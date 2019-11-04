@@ -9,27 +9,27 @@ from argparse import ArgumentParser,ArgumentTypeError
 from threading import Thread,Event,Lock
 
 
-LIST_ESPERA={}
-LIST_RECIBIDOS={}
-TOTAL_VIVOS = 0
+LIST_ESPERA={} #Lista de espera para recibir respuestas
+LIST_RECIBIDOS={} #Lista de recibidos para imprimir estadisticas
+TOTAL_VIVOS = 0 #Para imprimir el total de vivos
+BYTES = bytes() #Para recibir los bytes de respuesta
+ARRAY_TIEMPO_ACTUAL={} #Para saber el tiempo de una respuesta
 
 
-DEFAULT_TIMEOUT = 5
-DEFAULT_INTERVAL= 0.0025
-DEFAULT_COUNT = 3
-DEFAULT_DEBUG = False
+DEFAULT_TIMEOUT = 5 #Tiempo de espera predeterminado para esperar una respuesta
+DEFAULT_INTERVAL= 0.0025 #Tiempo de espera de intervalo predeterminado de envio a cada host 
+DEFAULT_COUNT = 3 #Valor predeterminado de envio a cada host
+DEFAULT_DEBUG = False #Para imprimir estadisticas
 
-HILO_RECIBE_PONG = Thread()
-HILO_RECIBE_BYTES = Thread()
+HILO_RECIBE_PONG = Thread() #Hilo que decodifica la respuestas
+HILO_RECIBE_BYTES = Thread()#Hilo que recibe los bytes de respuesta
 
 
-EVENT = Event()
-MUTEX_LIST = Lock()
-MUTEX_BYTES = Lock()
-BYTES = bytes()
-DESCRIPTOR_LECTOR_A_COSUMIR = 0
+EVENT = Event() #Evento para matar a los hilos
+MUTEX_LIST = Lock() #Lock (Semaforo) para exlusión mutua la variables LIST_ESPERA
+MUTEX_BYTES = Lock() #Lock (Semaforo) para exlusión mutua la variables BYTES
+DESCRIPTOR_LECTOR_A_COSUMIR = 0 
 DESCRIPTOR_LECTOR_CONSUMIDO = 0
-ARRAY_TIEMPO_ACTUAL={}
 
 def calcular_checksum(DATOS):
     """
@@ -122,6 +122,12 @@ def calcular_checksum(DATOS):
 
     return cheksum
 
+
+def salir():
+    EVENT.set()
+    exit(1)
+
+
 def crear_cabecera_icmp(ICMP_DATA, ICMP_ID, ICMP_SEQ):
     """
         Esta función crea la cabecera ICMP, empaquetada
@@ -157,12 +163,8 @@ def reiniciar_hilo(NOMBRE_FUNCION):
         HILO_RECIBE_PONG = aux
     else:
         HILO_RECIBE_BYTES = aux
-        #HILO_RECIBE_BYTES.start()
-    
-    aux.start()
 
-#    HILO_RECIBE_PONG=Thread(target=recibir_pong ,args=(EVENT,))
-#    HILO_RECIBE_PONG.start()
+    aux.start()
     
 
 def enviar_ping(ID, DESTINATION, COUNT):
@@ -212,13 +214,11 @@ def enviar_ping(ID, DESTINATION, COUNT):
             else:
                 SEQ=0
 
-            #sleep(DEFAULT_INTERVAL)
-            #sleep(0.01)
 
     except socket.error as error:
         if error.errno == 1:
             print("Ejecute el programa como adminstrador para enviar mensajes ICMP")
-            exit(1)
+            salir()
         if error.errno == 13:
             print("Permiso denegado ¿Estas intentando hacer ping a difusión?")
             sock.close()
@@ -227,22 +227,22 @@ def enviar_ping(ID, DESTINATION, COUNT):
             print("La red es inalcanzable")
             sock.close()
             EVENT.set()
-            exit(1)
+            salir()
         if error.errno == 22:
             print("Argumento invalido: ", DESTINATION)
             sock.close()
             EVENT.set()
-            exit(1)
+            salir()
         if error.errno == -9:
             print("Argumento invalido: ", DESTINATION)
             sock.close()
-            exit(1)
+            salir()
         print("error", error)
         
     except Exception as error:
         print("error", error)
         sock.close()
-        exit(1)
+        salir()
     
     """
         Ejemplo de como se vería LISTA_ESPERA
@@ -394,8 +394,7 @@ def desempaquetar_icmp(PAQUETE):
 def recibir_bytes(event):
     global BYTES, DESCRIPTOR_LECTOR_A_COSUMIR,ARRAY_TIEMPO_ACTUAL
     #Declaramos un socket para recibir las respuestas ECHO_REPLY
-    
-    print("Entra hilo")
+
     sock = socket.socket(socket.AF_INET, socket.SOCK_RAW, socket.IPPROTO_ICMP)
     
     while not event.is_set():
@@ -415,15 +414,17 @@ def recibir_bytes(event):
         if (select([sock], [], [], 0.5))[0] == []:
             continue
 
-        tiempo_actuala=time()   
-
-        recv_packe = sock.recv(56)
-        MUTEX_BYTES.acquire()
-        BYTES += recv_packe
-        DESCRIPTOR_LECTOR_A_COSUMIR += len(recv_packe)
-        ARRAY_TIEMPO_ACTUAL[DESCRIPTOR_LECTOR_A_COSUMIR]=tiempo_actuala
-        
-        MUTEX_BYTES.release()
+        tiempo_actual=time() #Obtener el tiempo en que se reciben los bytes
+        recv_packe = sock.recv(56) #Recibir 56 bytes maximo
+        #Optiene la cantidad de bytes que vamos a utilizar del socket
+        #Normalmente solo son 28 bytes (20 de cabecera IP y 8 de cabecera ICMP)
+        #Pero si recibimos un host inalcanzable son 56
+        #(20 de cabecera IP, 8 de cabecera ICMP, 20 de cabecera IP en datos ICMP y 8 de cabecera ICMP en datos ICMP)
+        MUTEX_BYTES.acquire() #Entramos a la sección critica
+        BYTES += recv_packe #Sumamos los bytes recibidos a la variable global BYTES
+        DESCRIPTOR_LECTOR_A_COSUMIR += len(recv_packe) #Sumamos el descriptor a consumir
+        ARRAY_TIEMPO_ACTUAL[DESCRIPTOR_LECTOR_A_COSUMIR]=time() #Guardamos el tiempo actual
+        MUTEX_BYTES.release() #Salimos de la sección critica
 
     sock.close() 
 
@@ -473,30 +474,17 @@ def recibir_pong(event):
         fdw = 0
         if DESCRIPTOR_LECTOR_A_COSUMIR > 0: 
             fdw = DESCRIPTOR_LECTOR_A_COSUMIR # FWD significa File Descriptor Writing (Me parece más sencillo los nombres abreviados en inglés)
-            #ARRAY_TIEMPO_ACTUAL[DESCRIPTOR_LECTOR_A_COSUMIR]
-            tiempo_actual_ = ARRAY_TIEMPO_ACTUAL[fdw]
+            tiempo_actual_paquete = ARRAY_TIEMPO_ACTUAL[fdw]
         MUTEX_BYTES.release()
         
         if fdw == DESCRIPTOR_LECTOR_CONSUMIDO:
             sleep(0.01)
             continue
 
-        
-        #if (select([sock], [], [], 0))[0] == []:
-            #Para no consumir tanto procesador podemos tener un tiempo de espera pequeño
-            #o hacer un sleep()
-            #sleep(0.01)
-        #    continue
-        
+        MUTEX_BYTES.acquire()
         paquete_actual=BYTES[DESCRIPTOR_LECTOR_CONSUMIDO:]
+        MUTEX_BYTES.release()
 
-        
-        #Optiene la cantidad de bytes que vamos a utilizar del socket
-        #Normalmente solo son 28 bytes (20 de cabecera IP y 8 de cabecera ICMP)
-        #Pero si recibimos un host inalcanzable son 56
-        #(20 de cabecera IP, 8 de cabecera ICMP, 20 de cabecera IP en datos ICMP y 8 de cabecera ICMP en datos ICMP)
-        
-        #tiempo_actual= time() #- time_sleep #+ #tiempo_latencia_lista)
         #Convierte bytes a una cabecera IP    
         datagrama_ip = desempaquetar_ip(paquete_actual)
         
@@ -513,8 +501,6 @@ def recibir_pong(event):
         #Entramos a sección critica    
         MUTEX_LIST.acquire()
         
-
-
         #Creamos una variable auxiliar para buscar estos datos en el diccionario LIST_ESPERA
         ip_and_id = datagrama_ip["source address"], datagrama_icmp ["id"]
 
@@ -540,8 +526,7 @@ def recibir_pong(event):
                 if datagrama_icmp["seq"] == datos[0]:
                     #Agregamos la respuesta al diccionario LIST_RECIBIDOS
                     if DEFAULT_DEBUG:
-                        #print(tiempo_actual_,datos[1])
-                        LIST_RECIBIDOS[datagrama_ip["source address"]]+=[[datos[0],datagrama_ip["ttl"], (tiempo_actual_ - datos[1])*1000]]
+                        LIST_RECIBIDOS[datagrama_ip["source address"]]+=[[datos[0],datagrama_ip["ttl"], (tiempo_actual_paquete - datos[1])*1000]]
                     #* Eliminanos el array de la clave porque ya respondió
                     del LIST_ESPERA[ip_and_id][i]
                     break
@@ -588,7 +573,7 @@ def recibir_pong(event):
 
 def ping(DESTINATION, COUNT=DEFAULT_COUNT, TIMEOUT=DEFAULT_TIMEOUT):
     id = randint(0, 65535)
-    enviar_ping(id,DESTINATION, COUNT)    
+    enviar_ping(ID=id,DESTINATION=DESTINATION, COUNT=COUNT)    
     
 
 def ufloat(value):
@@ -638,11 +623,9 @@ if __name__ == '__main__':
             sleep(args.interval)
 
     except KeyboardInterrupt:
-        MUTEX_LIST.acquire()
         EVENT.set()
-        MUTEX_LIST.release()
     except ValueError:
-        exit(1)
+        salir()
     
     if HILO_RECIBE_PONG.isAlive():    
         HILO_RECIBE_PONG.join()
@@ -655,8 +638,7 @@ if __name__ == '__main__':
             tiempo_minimo = -1
             tiempo_maximo = -1
             tiempo_avg = 0
-            
-            
+                       
             for j in datos:
                 if tiempo_maximo == -1:
                     tiempo_maximo = j[2]
