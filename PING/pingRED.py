@@ -329,7 +329,7 @@ def desempaquetar_ip(PAQUETE,FROM =0 , TO = 20):
     #dtgr_ip["total packet lenght"] = (ip_header[0] & 0xF) * 4      # Total packet lenght
     dtgr_ip["id"]                  = ip_header[3]                   # Identification
                                                     #32768
-    dtgr_ip["rsb"]                 = ip_header[4] >> 15  # Reserver bit Flags # obtener el primer bit y desplazamiento a la derecha 15 bits
+    dtgr_ip["rsb"]                 = ip_header[4] >> 15             # Reserver bit Flags # obtener el primer bit y desplazamiento a la derecha 15 bits
                                                     #16384
     dtgr_ip["dtf"]                 = (ip_header[4] & 0x4000) >> 14  # Don't fragments # obtener el segundo bit y desplazamiento a la derecha 14 bits
                                                     #8192

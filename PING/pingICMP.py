@@ -116,7 +116,6 @@ def crear_cabecera_icmp(ICMP_DATA, ICMP_ID, ICMP_SEQ):
     """
     return pack("!BBHHH", 8, 0, calcular_checksum(ICMP_DATA), ICMP_ID, ICMP_SEQ)
 
-
 def crear_datos(SIZE):
     """
         Esta función crea los datos, con numeros aleatorios de 0 al 9
@@ -131,11 +130,11 @@ def crear_icmp(ID, SEQ, LEN_DATA):
     """
         Esta función crea el datagrama ICMP con los datos
     """
-    data = crear_datos(LEN_DATA)
+    data = crear_datos(SIZE=LEN_DATA)
 
-    header=crear_cabecera_icmp(0, ID, SEQ)
+    empty_header = crear_cabecera_icmp(ICMP_DATA=0, ICMP_ID= ID, ICMP_SEQ=SEQ)
 
-    return crear_cabecera_icmp(header+data, ID, SEQ)+data
+    return crear_cabecera_icmp(empty_header + data, ID, SEQ) + data
 
 
 def enviar_ping(sock,  ID, SEQ, IP_DST, LEN_DATA):
@@ -187,7 +186,7 @@ def desempaquetar_ip(PAQUETE,FROM =0 , TO = 20):
     #METODO UNPACK
     ip_header = unpack('!BBHHHBBH4s4s', PAQUETE[FROM:TO])
     
-    dtgr_ip = {} #Declaración del hasmap
+    dtgr_ip = {} #Declaración del hashmap
     
     dtgr_ip["version"]             = ip_header[0] >> 4              # IP Version 
     dtgr_ip["ihl"]                 = ip_header[0] & 15              # Header Legnth
@@ -210,10 +209,10 @@ def desempaquetar_ip(PAQUETE,FROM =0 , TO = 20):
     dtgr_ip["source address"]      = socket.inet_ntoa(ip_header[8]) # Source address
     dtgr_ip["destination address"] = socket.inet_ntoa(ip_header[9]) # Destination address
 
-    if  (ip_header[0] & 0xF) > 5 :
-        ip_options = unpack('!BB', PAQUETE[FROM +20 : TO +22])
-        dtgr_ip["option type"] = ip_options[0]                      # option type
-        dtgr_ip["option lenght"] = ip_options[0]                    # options lenght
+    #if  (ip_header[0] & 0xF) > 5 :
+    #    ip_options = unpack('!BB', PAQUETE[FROM +20 : TO +22])
+    #    dtgr_ip["option type"] = ip_options[0]                      # option type
+    #    dtgr_ip["option lenght"] = ip_options[0]                    # options lenght
         
         
     #METODO BITS a BITS 
