@@ -17,7 +17,7 @@ ARRAY_TIEMPO_ACTUAL={} #Para saber el tiempo de una respuesta
 
 
 DEFAULT_TIMEOUT = 5 #Tiempo de espera predeterminado para esperar una respuesta
-DEFAULT_INTERVAL= 0.0025 #Tiempo de espera de intervalo predeterminado de envio a cada host 
+DEFAULT_INTERVAL= 0.025 #Tiempo de espera de intervalo predeterminado de envio a cada host 
 DEFAULT_COUNT = 3 #Valor predeterminado de envio a cada host
 DEFAULT_DEBUG = False #Para imprimir estadisticas
 
@@ -147,27 +147,26 @@ def crear_icmp(ID, SEQ):
     return crear_cabecera_icmp(crear_cabecera_icmp(0, ID, SEQ), ID, SEQ)
 
 
-def reiniciar_hilo(NOMBRE_FUNCION):
+def reiniciar_hilo(NOMBRE_FUNCION, DEBUG = False, TIMEOUT=0):
     """
     Esta función reincia el hilo que recibe las respuestas pong (ECHO_REPLY)
     """
     #la palabra reservada global, significa que me estoy refiriendo a una variable Global
     global HILO_RECIBE_PONG, HILO_RECIBE_BYTES
-    #Hilo recibe pong es una variable tipo Thread
+    if NOMBRE_FUNCION == recibir_pong:
+        HILO_RECIBE_PONG = Thread(target=NOMBRE_FUNCION ,args=(EVENT,DEBUG,TIMEOUT))
+        HILO_RECIBE_PONG.start()
+    else:
+        HILO_RECIBE_BYTES = Thread(target=NOMBRE_FUNCION ,args=(EVENT,))
+        HILO_RECIBE_BYTES.start()
+    #Hilo recibe pong y hilo recibe bytes es una variable tipo Thread
     #target (función) recibir pong, es la función que el hilo ejecutará
     #args sons los argumentos de dicha función. es un evento para poder terminar o matar el hilo
     #cuando el usuario presione CTRL + C
-    aux=Thread(target=NOMBRE_FUNCION ,args=(EVENT,))
     #La función start, como su nombre lo indica, inicia el hilo
-    if NOMBRE_FUNCION == recibir_pong:
-        HILO_RECIBE_PONG = aux
-    else:
-        HILO_RECIBE_BYTES = aux
-
-    aux.start()
     
 
-def enviar_ping(ID, DESTINATION, COUNT):
+def enviar_ping(ID, DESTINATION, COUNT, INTERVAL, DEBUG, TIMEOUT):
     global LIST_ESPERA
     try:
         #socket.AF_INET signifca que utilizaremos ipv4
@@ -202,18 +201,15 @@ def enviar_ping(ID, DESTINATION, COUNT):
 
             #Si el hilo RECIBE PONG no esta vivo, lo reiniciamos
             if not HILO_RECIBE_PONG.isAlive():
-                reiniciar_hilo(recibir_pong)
-
-            if i+1 != COUNT:
-                sleep(0.01)
-            else:
-                break
+                reiniciar_hilo(recibir_pong, DEBUG, TIMEOUT)
 
             if SEQ != 65535:
                 SEQ += 1
             else:
                 SEQ=0
-
+            
+            sleep(INTERVAL)
+            
 
     except socket.error as error:
         if error.errno == 1:
@@ -429,13 +425,12 @@ def recibir_bytes(event):
     sock.close() 
 
 
-def recibir_pong(event):
+def recibir_pong(event, DEBUG, TIMEOUT):
     
     """
         Esta función es la que recibe todas las respuestas del ECHO_REQUEST
         Es un hilo, entonces se esta ejecutando de manera paralela al hilo principal
     """
-
     #LIST_ESPERA, LIST_RECIBIDOS y TOTAL_VIVOS son variables globales que utlizaremos en esta función
     global LIST_ESPERA, LIST_RECIBIDOS,TOTAL_VIVOS, BYTES, DESCRIPTOR_LECTOR_A_COSUMIR,DESCRIPTOR_LECTOR_CONSUMIDO,EVENT
     
@@ -453,9 +448,9 @@ def recibir_pong(event):
             #El tiempo actual - el tiempo_de_envío (x[1]), ¿Es menor al tiempo limite (tiempo agotado)?
             # Si la respuesta es True, el array quedará intacto,
             # de lo contrario (False), será omitdo 
-            LIST_ESPERA[KEY]=[x for x in LIST_ESPERA[KEY] if time() - x[1] < DEFAULT_TIMEOUT]
+            LIST_ESPERA[KEY]=[x for x in LIST_ESPERA[KEY] if time() - x[1] < TIMEOUT]
             # Hacer un for in y un FILTER ES LO MISMO, pero si te quieres ver más pro utiliza el filter 
-            #LIST_ESPERA[KEY]=list(filter(lambda x: time() - x[1] < DEFAULT_TIMEOUT, LIST_ESPERA[KEY]))
+            #LIST_ESPERA[KEY]=list(filter(lambda x: time() - x[1] < TIMEOUT, LIST_ESPERA[KEY]))
             
             #Si ya no queda ningún elemento asociado a la clave, la clave se eliminará
             if not LIST_ESPERA[KEY]:
@@ -478,7 +473,7 @@ def recibir_pong(event):
         MUTEX_BYTES.release()
         
         if fdw == DESCRIPTOR_LECTOR_CONSUMIDO:
-            sleep(0.01)
+            sleep(0.001)
             continue
 
         MUTEX_BYTES.acquire()
@@ -494,6 +489,12 @@ def recibir_pong(event):
         
         DESCRIPTOR_LECTOR_CONSUMIDO += 28 if datagrama_icmp["type"] == 0 or datagrama_icmp["type"] == 8 else 56
         
+        #MUTEX_BYTES.acquire()
+        #BYTES = BYTES[DESCRIPTOR_LECTOR_CONSUMIDO:]
+        #DESCRIPTOR_LECTOR_A_COSUMIR -= DESCRIPTOR_LECTOR_CONSUMIDO
+        #DESCRIPTOR_LECTOR_CONSUMIDO = 0
+        #MUTEX_BYTES.release()
+
         if datagrama_icmp["type"] == 8:
             continue
             
@@ -525,7 +526,7 @@ def recibir_pong(event):
               
                 if datagrama_icmp["seq"] == datos[0]:
                     #Agregamos la respuesta al diccionario LIST_RECIBIDOS
-                    if DEFAULT_DEBUG:
+                    if DEBUG:
                         LIST_RECIBIDOS[datagrama_ip["source address"]]+=[[datos[0],datagrama_ip["ttl"], (tiempo_actual_paquete - datos[1])*1000]]
                     #* Eliminanos el array de la clave porque ya respondió
                     del LIST_ESPERA[ip_and_id][i]
@@ -564,17 +565,6 @@ def recibir_pong(event):
         #Cerramos la sección crítica
         MUTEX_LIST.release()
 
-        #time_sleep += 0.01
-
-    #EVENT.set()
-    #Cerramos el socket
-    #sock.close()
-
-
-def ping(DESTINATION, COUNT=DEFAULT_COUNT, TIMEOUT=DEFAULT_TIMEOUT):
-    id = randint(0, 65535)
-    enviar_ping(ID=id,DESTINATION=DESTINATION, COUNT=COUNT)    
-    
 
 def ufloat(value):
     try:
@@ -603,35 +593,25 @@ def uint(VALUE):
     return uint
 
 
-if __name__ == '__main__':
-    parser = ArgumentParser()    
-    parser.description="Ping simple python 3: by: Salvador Real "
-    parser.add_argument('-d', '--debug',   action='store_true',                     help='Imprimir estadisticas de los paquetes')
-    parser.add_argument('-t', '--timeout', type=ufloat,  default=DEFAULT_TIMEOUT,   help='Especifica el tiempo de espera de la respuesta de la solicitud de ping en segundos (ECHO_REPLY). El valor predeterminado es %(default)s segundos')
-    parser.add_argument('-c', '--count',   type=uint,    default=DEFAULT_COUNT,     help='Especifica la cantidad de veces que se debe enviar la solicitud de ping (ECHO_REQUEST) a cada host. El valor predeterminado es %(default)s')
-    parser.add_argument('-i', '--interval',type=ufloat,  default=DEFAULT_INTERVAL,  help='Especifica el tiempo de espera de intervalo entre el envío de cada paquete a cada host en segundos. El valor predeterminado es %(default)s segundos')
-    parser.add_argument('red',help="A.B.D.E/Mascara")
-    args = parser.parse_args()
-
-    DEFAULT_TIMEOUT = args.timeout
-    DEFAULT_COUNT = args.count
-    DEFAULT_DEBUG = args.debug
+def ping(NETWORK:str, COUNT:int = DEFAULT_COUNT, TIMEOUT:float = DEFAULT_TIMEOUT, INTERVAL:float = DEFAULT_INTERVAL, DEBUG:bool = DEFAULT_DEBUG):
+    
     try:
-        network = ip_network(args.red)   
-        for i in network.hosts():            
-            ping(str(i), args.count, args.timeout)
-            sleep(args.interval)
+        network = ip_network(NETWORK)   
+        for i in network.hosts():
+            enviar_ping(ID=randint(0, 65535),DESTINATION=str(i), COUNT=COUNT, INTERVAL=INTERVAL, DEBUG=DEBUG,TIMEOUT=TIMEOUT)
+
+    
+        if HILO_RECIBE_PONG.isAlive():    
+            HILO_RECIBE_PONG.join()
 
     except KeyboardInterrupt:
-        EVENT.set()
+        pass
     except ValueError:
         salir()
-    
-    if HILO_RECIBE_PONG.isAlive():    
-        HILO_RECIBE_PONG.join()
 
     EVENT.set()
-    if DEFAULT_DEBUG and TOTAL_VIVOS > 0:
+
+    if DEBUG and TOTAL_VIVOS > 0:
         for i,datos in LIST_RECIBIDOS.items():
             print("-"*10,i,"-"*10)
 
@@ -653,10 +633,24 @@ if __name__ == '__main__':
 
                 print("secuencia: %d ttl: %d tiempo: %.2fms "%(j[0],j[1],j[2]))
 
-            print("\n%d paquetes transmitidos, %d paquetes recibidos, %.2f%% paquetes perdidos, tiempo %0.2fms" %(DEFAULT_COUNT,len(datos),(1-len(datos)/DEFAULT_COUNT)*100, tiempo_avg ))
+            print("\n%d paquetes transmitidos, %d paquetes recibidos, %.2f%% paquetes perdidos, tiempo %0.2fms" %(COUNT,len(datos),(1-len(datos)/COUNT)*100, tiempo_avg ))
             print("rtt min/avg/max/ = %.2f/%.2f/%.2f ms" %(tiempo_minimo, tiempo_avg / len(datos) ,tiempo_maximo))    
 
             print("-"*33)
    
     
     print("Total Vivos: ",TOTAL_VIVOS)
+
+
+if __name__ == '__main__':
+    parser = ArgumentParser()    
+    parser.description="Ping simple python 3: by: Salvador Real "
+    parser.add_argument('-d', '--debug',   action='store_true',                     help='Imprimir estadisticas de los paquetes')
+    parser.add_argument('-t', '--timeout', type=ufloat,  default=DEFAULT_TIMEOUT,   help='Especifica el tiempo de espera de la respuesta de la solicitud de ping en segundos (ECHO_REPLY). El valor predeterminado es %(default)s segundos')
+    parser.add_argument('-c', '--count',   type=uint,    default=DEFAULT_COUNT,     help='Especifica la cantidad de veces que se debe enviar la solicitud de ping (ECHO_REQUEST) a cada host. El valor predeterminado es %(default)s')
+    parser.add_argument('-i', '--interval',type=ufloat,  default=DEFAULT_INTERVAL,  help='Especifica el tiempo de espera de intervalo entre el envío de cada paquete en segundos. El valor predeterminado es %(default)s segundos')
+    parser.add_argument('red',help="A.B.D.E/Mascara")
+    args = parser.parse_args()
+
+
+    ping(NETWORK=args.red, COUNT=args.count, TIMEOUT=args.timeout, INTERVAL=args.interval, DEBUG=args.debug)

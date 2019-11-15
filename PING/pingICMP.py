@@ -116,6 +116,7 @@ def crear_cabecera_icmp(ICMP_DATA, ICMP_ID, ICMP_SEQ):
     """
     return pack("!BBHHH", 8, 0, calcular_checksum(ICMP_DATA), ICMP_ID, ICMP_SEQ)
 
+
 def crear_datos(SIZE):
     """
         Esta función crea los datos, con numeros aleatorios de 0 al 9
@@ -150,7 +151,7 @@ def enviar_ping(sock,  ID, SEQ, IP_DST, LEN_DATA):
     return time()#perf_counter()
 
 #Deserialización bits cabecera IP
-def desempaquetar_ip(PAQUETE,FROM =0 , TO = 20):
+def desempaquetar_ip(PAQUETE,FROM =0 , TO = 20, CHARACTER = ""):
     """
         Esta función desempaca el datagrama IP recivido en un diccionario o hasmap (array de nombres)
         Es para hacer mas sencilla la lectura de los datos
@@ -188,53 +189,25 @@ def desempaquetar_ip(PAQUETE,FROM =0 , TO = 20):
     
     dtgr_ip = {} #Declaración del hashmap
     
-    dtgr_ip["version"]             = ip_header[0] >> 4              # IP Version 
-    dtgr_ip["ihl"]                 = ip_header[0] & 15              # Header Legnth
-    dtgr_ip["dsc"]                 = ip_header[1] >> 2              # Differentiate Services Codepoint - Differentiate Servic Field
-    dtgr_ip["enc"]                 = ip_header[1] & 15              # Explicit Services Codepoint - Differentiate Servic Field
-    dtgr_ip["total length"]        = ip_header[2]                   # Total lenght
-    #dtgr_ip["total packet lenght"] = (ip_header[0] & 0xF) * 4      # Total packet lenght
-    dtgr_ip["id"]                  = ip_header[3]                   # Identification
-                                                    #32768
-    dtgr_ip["rsb"]                 = ip_header[4] >> 15  # Reserver bit Flags # obtener el primer bit y desplazamiento a la derecha 15 bits
-                                                    #16384
-    dtgr_ip["dtf"]                 = (ip_header[4] & 0x4000) >> 14  # Don't fragments # obtener el segundo bit y desplazamiento a la derecha 14 bits
-                                                    #8192
-    dtgr_ip["mrf"]                 = (ip_header[4] & 0x2000) >> 13  # More fragments # obtener el primer bit y desplazamiento a la derecha 13 bits
-                                                    #8191
-    dtgr_ip["frag offset"]         = ip_header[4]  & 0x1fff         # Fragment offset
-    dtgr_ip["ttl"]                 = ip_header[5]                   # time To live
-    dtgr_ip["protocol"]            = ip_header[6]                   # Protocol
-    dtgr_ip["checksum"]            = ip_header[7]                   # Checksum
-    dtgr_ip["source address"]      = socket.inet_ntoa(ip_header[8]) # Source address
-    dtgr_ip["destination address"] = socket.inet_ntoa(ip_header[9]) # Destination address
+    dtgr_ip["version" + CHARACTER]             = ip_header[0] >> 4              # IP Version 
+    dtgr_ip["ihl" + CHARACTER]                 = ip_header[0] & 15              # Header Legnth
+    dtgr_ip["dsc"+  CHARACTER]                 = ip_header[1] >> 2              # Differentiate Services Codepoint - Differentiate Servic Field
+    dtgr_ip["enc"+  CHARACTER]                 = ip_header[1] & 15              # Explicit Services Codepoint - Differentiate Servic Field
+    dtgr_ip["total length" + CHARACTER]        = ip_header[2]                   # Total lenght
+    dtgr_ip["id" + CHARACTER]                  = ip_header[3]                   # Identification
+    dtgr_ip["rsb" + CHARACTER]                 = ip_header[4] >> 15             # Reserver bit Flags # obtener el primer bit y desplazamiento a la derecha 15 bits
+                                                                #16384
+    dtgr_ip["dtf" + CHARACTER]                 = (ip_header[4] & 0x4000) >> 14  # Don't fragments # obtener el segundo bit y desplazamiento a la derecha 14 bits
+                                                                #8192
+    dtgr_ip["mrf"+  CHARACTER]                 = (ip_header[4] & 0x2000) >> 13  # More fragments # obtener el primer bit y desplazamiento a la derecha 13 bits
+                                                                #8191
+    dtgr_ip["frag offset" + CHARACTER]         = ip_header[4]  & 0x1fff         # Fragment offset
+    dtgr_ip["ttl" + CHARACTER]                 = ip_header[5]                   # time To live
+    dtgr_ip["protocol" + CHARACTER]            = ip_header[6]                   # Protocol
+    dtgr_ip["checksum" + CHARACTER]            = ip_header[7]                   # Checksum
+    dtgr_ip["source address" + CHARACTER]      = socket.inet_ntoa(ip_header[8]) # Source address
+    dtgr_ip["destination address" + CHARACTER] = socket.inet_ntoa(ip_header[9]) # Destination address
 
-    #if  (ip_header[0] & 0xF) > 5 :
-    #    ip_options = unpack('!BB', PAQUETE[FROM +20 : TO +22])
-    #    dtgr_ip["option type"] = ip_options[0]                      # option type
-    #    dtgr_ip["option lenght"] = ip_options[0]                    # options lenght
-        
-        
-    #METODO BITS a BITS 
-    """ ip_header = bitstring.BitArray(PAQUETE[FROM:TO])
-    
-    print("Version:", ip_header[0:4].int)
-    print("Header lenght:", ip_header[4:8].int)
-    print("DSC", ip_header[8:14].int)
-    print("ECN:", ip_header[14:16].int)
-    print("Total length", ip_header[16:32].uint)
-    print("ID", ip_header[32:48].uint)
-    print("Reserver bit", ip_header[48:49].uint)
-    print("Don't fragment ", ip_header[49:50].uint)
-    print("More fragment ", ip_header[50:51].uint)
-    print("Fragment offset ", ip_header[51:64].uint)
-    print("TTL ", ip_header[64:72].int)
-    print("Protcol", ip_header[72:80].int)
-    print("Cheksum", ip_header[80:96].uint)
-    print("Source Address",ip_header[96:104].uint, ip_header[104:112].uint, ip_header[112:120].uint, ip_header[120:128].uint)
-    print("Destination Address", ip_header[128:136].uint, ip_header[136:144].uint,ip_header[144:152].uint, ip_header[152:160].uint)
-    """
-    
     return dtgr_ip
 
 #Deserialización bits cabecera ICMP
@@ -260,14 +233,17 @@ def desempaquetar_icmp(PAQUETE):
     dtgr_icmp["type"]     = icmp_header[0] # Type
     dtgr_icmp["code"]     = icmp_header[1] # Code
     dtgr_icmp["checksum"] = icmp_header[2] # Checksum
-    dtgr_icmp["id"]       = icmp_header[3] # Identifier
-    dtgr_icmp["seq"]      = icmp_header[4] # Sequence number
+    if dtgr_icmp["type"] != 5: #Si no es tipo 5 (Regirigir ruta) el paquete tiene ID y sequencia
+        dtgr_icmp["id"]   = icmp_header[3] # Identifier
+        dtgr_icmp["seq"]  = icmp_header[4] # Sequence number
+    else: #Si es tipo 5. tiene una dirección ip del siguiente salto
+        dtgr_icmp["gateway address"] = socket.inet_ntoa(unpack("!4s", PAQUETE[24:28])[0]) #Gateway address
     
     #Si es tipo error desempaco la cabecera IP y ICMP que esta en los datos ICMP
-    if dtgr_icmp["type"] == 3 or dtgr_icmp["type"] == 11:
+    if dtgr_icmp["type"] == 3 or dtgr_icmp["type"] == 11 or dtgr_icmp["type"] == 5:
         
-        #Para agregar un hasmap en otro se utiliza el metodo update()
-        dtgr_icmp.update(desempaquetar_ip(PAQUETE,28,48))       
+        #Para agregar un hashmap en otro se utiliza el metodo update()
+        dtgr_icmp.update(desempaquetar_ip(PAQUETE,28,48,"_"))       
         
         icmp_header = unpack("!BBHHH", PAQUETE[48:56])
 
@@ -312,7 +288,7 @@ def convertir_tipo_y_codigo_a_texto(TYPE, CODE):
         return "tipo=%s código=%s" %( TYPE, CODE)
 
 
-def lookup(DESTINATION):
+def dnslookup(DESTINATION):
     """
         Esta función optiene la dirección IP del host y obtiene el alias de la IP (Si tiene)
         DNS lookup, DNS Resolución inversa
@@ -354,7 +330,7 @@ def modo_depuracion(DATAGRAMA_IP, DATAGRAMA_ICMP,SEQ):
         if "data_" == i:
             v = (hexlify(DATAGRAMA_ICMP["data_"])).decode('utf-8')
         
-        if "version" == i:
+        if "version_" == i:
             print("-"*3,"DATAGRAMA IP EN DATOS ICMP","-"*3)
         
         if "type_" == i:
@@ -387,6 +363,11 @@ def recibir_pong(SOCK, DESTINATION_ADDRESS, ID, SEQ, TIMEOUT, DEBUG):
         #Convierte bytes a una cabecera ICMP
         datagrama_icmp = desempaquetar_icmp(recv_packet)
 
+        if datagrama_icmp["type"] == 5 and datagrama_icmp["id_"] == ID and datagrama_icmp["seq_"] == SEQ:
+            print("Desde %s: icmp_seq=%d Redirigir ruta (Nuevo próximo salto: %s)" %(datagrama_ip["source address"], datagrama_icmp["seq_"], datagrama_icmp["gateway address"]))
+            if DEBUG:
+                modo_depuracion(datagrama_ip, datagrama_icmp, SEQ)
+
         #¿Es una respuesta (ECHO_REPLY) y es para mi?
         if datagrama_icmp["type"] == 0 and datagrama_icmp["code"] == 0 and datagrama_icmp["id"] == ID and datagrama_icmp["seq"] == SEQ:
             if DEBUG:
@@ -403,7 +384,7 @@ def recibir_pong(SOCK, DESTINATION_ADDRESS, ID, SEQ, TIMEOUT, DEBUG):
         #No es para mí, a esperar otro datagrama....
 
 
-def ping(DESTINATION, SIZE_DATA=DEFAULT_SIZE_DATA, COUNT=DEFAULT_COUNT, INTERVAL=DEFAULT_INTERVAL, TIMEOUT=DEFAULT_INTERVAL, DEBUG=False):
+def ping(DESTINATION:str, SIZE_DATA:int = DEFAULT_SIZE_DATA, COUNT:int = DEFAULT_COUNT, INTERVAL:float = DEFAULT_INTERVAL, TIMEOUT:float=DEFAULT_INTERVAL, DEBUG=False):
     transmitidos = 0
     recibidos = 0
     paquete_error = 0
@@ -418,7 +399,7 @@ def ping(DESTINATION, SIZE_DATA=DEFAULT_SIZE_DATA, COUNT=DEFAULT_COUNT, INTERVAL
         sock = socket.socket(socket.AF_INET, socket.SOCK_RAW, socket.IPPROTO_ICMP)
 
         #Hago una solicitud DNS y uns DNS inversa
-        ip_address, alias_address = lookup(DESTINATION)
+        ip_address, alias_address = dnslookup(DESTINATION)
         
         print("PING %s (%s) %d(%d) bytes de datos." %(DESTINATION,ip_address, SIZE_DATA,SIZE_DATA+28))
     
