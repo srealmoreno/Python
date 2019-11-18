@@ -12,8 +12,7 @@ from threading import Thread,Event,Lock
 LIST_ESPERA={} #Lista de espera para recibir respuestas
 LIST_RECIBIDOS={} #Lista de recibidos para imprimir estadisticas
 TOTAL_VIVOS = 0 #Para imprimir el total de vivos
-BYTES = bytes() #Para recibir los bytes de respuesta
-ARRAY_TIEMPO_ACTUAL={} #Para saber el tiempo de una respuesta
+BYTES = [] #Para recibir los bytes de respuesta
 
 
 DEFAULT_TIMEOUT = 5 #Tiempo de espera predeterminado para esperar una respuesta
@@ -29,7 +28,6 @@ EVENT = Event() #Evento para matar a los hilos
 MUTEX_LIST = Lock() #Lock (Semaforo) para exlusión mutua la variables LIST_ESPERA
 MUTEX_BYTES = Lock() #Lock (Semaforo) para exlusión mutua la variables BYTES
 DESCRIPTOR_LECTOR_A_COSUMIR = 0 
-DESCRIPTOR_LECTOR_CONSUMIDO = 0
 
 def calcular_checksum(DATOS):
     """
@@ -388,7 +386,7 @@ def desempaquetar_icmp(PAQUETE):
 
 
 def recibir_bytes(event):
-    global BYTES, DESCRIPTOR_LECTOR_A_COSUMIR,ARRAY_TIEMPO_ACTUAL
+    global BYTES, DESCRIPTOR_LECTOR_A_COSUMIR
     #Declaramos un socket para recibir las respuestas ECHO_REPLY
 
     sock = socket.socket(socket.AF_INET, socket.SOCK_RAW, socket.IPPROTO_ICMP)
@@ -411,15 +409,14 @@ def recibir_bytes(event):
             continue
 
         tiempo_actual=time() #Obtener el tiempo en que se reciben los bytes
-        recv_packe = sock.recv(56) #Recibir 56 bytes maximo
+        recv_packet = sock.recv(56) #Recibir 56 bytes maximo
         #Optiene la cantidad de bytes que vamos a utilizar del socket
         #Normalmente solo son 28 bytes (20 de cabecera IP y 8 de cabecera ICMP)
         #Pero si recibimos un host inalcanzable son 56
         #(20 de cabecera IP, 8 de cabecera ICMP, 20 de cabecera IP en datos ICMP y 8 de cabecera ICMP en datos ICMP)
         MUTEX_BYTES.acquire() #Entramos a la sección critica
-        BYTES += recv_packe #Sumamos los bytes recibidos a la variable global BYTES
-        DESCRIPTOR_LECTOR_A_COSUMIR += len(recv_packe) #Sumamos el descriptor a consumir
-        ARRAY_TIEMPO_ACTUAL[DESCRIPTOR_LECTOR_A_COSUMIR]=time() #Guardamos el tiempo actual
+        BYTES += [[recv_packet, time()]] #Sumamos los bytes recibidos a la variable global BYTES
+        DESCRIPTOR_LECTOR_A_COSUMIR += 1 #Sumamos el descriptor a consumir
         MUTEX_BYTES.release() #Salimos de la sección critica
 
     sock.close() 
@@ -432,7 +429,7 @@ def recibir_pong(event, DEBUG, TIMEOUT):
         Es un hilo, entonces se esta ejecutando de manera paralela al hilo principal
     """
     #LIST_ESPERA, LIST_RECIBIDOS y TOTAL_VIVOS son variables globales que utlizaremos en esta función
-    global LIST_ESPERA, LIST_RECIBIDOS,TOTAL_VIVOS, BYTES, DESCRIPTOR_LECTOR_A_COSUMIR,DESCRIPTOR_LECTOR_CONSUMIDO,EVENT
+    global LIST_ESPERA, LIST_RECIBIDOS,TOTAL_VIVOS, BYTES, DESCRIPTOR_LECTOR_A_COSUMIR,EVENT
     
     #Mientas no reciba la señal de detenerse el while se estará ejecutando
     #Esta señal es por si el usuario presiona CTRL + C para detener el programa, hay que
@@ -464,20 +461,17 @@ def recibir_pong(event, DEBUG, TIMEOUT):
         #Cerramos la sección crítica
         MUTEX_LIST.release()
 
-
         MUTEX_BYTES.acquire()
-        fdw = 0
-        if DESCRIPTOR_LECTOR_A_COSUMIR > 0: 
-            fdw = DESCRIPTOR_LECTOR_A_COSUMIR # FWD significa File Descriptor Writing (Me parece más sencillo los nombres abreviados en inglés)
-            tiempo_actual_paquete = ARRAY_TIEMPO_ACTUAL[fdw]
-        MUTEX_BYTES.release()
-        
-        if fdw == DESCRIPTOR_LECTOR_CONSUMIDO:
+        if DESCRIPTOR_LECTOR_A_COSUMIR > 0:
+            paquete_actual=BYTES[0][0]
+            tiempo_fin = BYTES[0][1]        
+            DESCRIPTOR_LECTOR_A_COSUMIR -= 1
+            del BYTES[0]
+        else:
+            MUTEX_BYTES.release()
             sleep(0.001)
             continue
 
-        MUTEX_BYTES.acquire()
-        paquete_actual=BYTES[DESCRIPTOR_LECTOR_CONSUMIDO:]
         MUTEX_BYTES.release()
 
         #Convierte bytes a una cabecera IP    
@@ -487,14 +481,6 @@ def recibir_pong(event, DEBUG, TIMEOUT):
         datagrama_icmp = desempaquetar_icmp(paquete_actual) 
         
         
-        DESCRIPTOR_LECTOR_CONSUMIDO += 28 if datagrama_icmp["type"] == 0 or datagrama_icmp["type"] == 8 else 56
-        
-        #MUTEX_BYTES.acquire()
-        #BYTES = BYTES[DESCRIPTOR_LECTOR_CONSUMIDO:]
-        #DESCRIPTOR_LECTOR_A_COSUMIR -= DESCRIPTOR_LECTOR_CONSUMIDO
-        #DESCRIPTOR_LECTOR_CONSUMIDO = 0
-        #MUTEX_BYTES.release()
-
         if datagrama_icmp["type"] == 8:
             continue
             
@@ -527,7 +513,7 @@ def recibir_pong(event, DEBUG, TIMEOUT):
                 if datagrama_icmp["seq"] == datos[0]:
                     #Agregamos la respuesta al diccionario LIST_RECIBIDOS
                     if DEBUG:
-                        LIST_RECIBIDOS[datagrama_ip["source address"]]+=[[datos[0],datagrama_ip["ttl"], (tiempo_actual_paquete - datos[1])*1000]]
+                        LIST_RECIBIDOS[datagrama_ip["source address"]]+=[[datos[0],datagrama_ip["ttl"], (tiempo_fin - datos[1])*1000]]
                     #* Eliminanos el array de la clave porque ya respondió
                     del LIST_ESPERA[ip_and_id][i]
                     break
@@ -596,7 +582,7 @@ def uint(VALUE):
 def ping(NETWORK:str, COUNT:int = DEFAULT_COUNT, TIMEOUT:float = DEFAULT_TIMEOUT, INTERVAL:float = DEFAULT_INTERVAL, DEBUG:bool = DEFAULT_DEBUG):
     
     try:
-        network = ip_network(NETWORK)   
+        network = ip_network(NETWORK) 
         for i in network.hosts():
             enviar_ping(ID=randint(0, 65535),DESTINATION=str(i), COUNT=COUNT, INTERVAL=INTERVAL, DEBUG=DEBUG,TIMEOUT=TIMEOUT)
 
@@ -607,6 +593,7 @@ def ping(NETWORK:str, COUNT:int = DEFAULT_COUNT, TIMEOUT:float = DEFAULT_TIMEOUT
     except KeyboardInterrupt:
         pass
     except ValueError:
+        print("Formato invalido", NETWORK)
         salir()
 
     EVENT.set()
