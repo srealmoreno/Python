@@ -636,7 +636,7 @@ if __name__ == '__main__':
     parser.add_argument('-t', '--timeout', type=ufloat,  default=DEFAULT_TIMEOUT,   help='Especifica el tiempo de espera de la respuesta de la solicitud de ping en segundos (ECHO_REPLY). El valor predeterminado es %(default)s segundos')
     parser.add_argument('-c', '--count',   type=uint,    default=DEFAULT_COUNT,     help='Especifica la cantidad de veces que se debe enviar la solicitud de ping (ECHO_REQUEST) a cada host. El valor predeterminado es %(default)s')
     parser.add_argument('-i', '--interval',type=ufloat,  default=DEFAULT_INTERVAL,  help='Especifica el tiempo de espera de intervalo entre el envío de cada paquete en segundos. El valor predeterminado es %(default)s segundos')
-    parser.add_argument('red',help="A.B.D.E/Mascara")
+    parser.add_argument('red',help="A.B.D.E/Máscara")
     args = parser.parse_args()
 
 
