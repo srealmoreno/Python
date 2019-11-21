@@ -631,12 +631,12 @@ def ping(NETWORK:str, COUNT:int = DEFAULT_COUNT, TIMEOUT:float = DEFAULT_TIMEOUT
 
 if __name__ == '__main__':
     parser = ArgumentParser()    
-    parser.description="Ping simple python 3: by: Salvador Real "
+    parser.description="Ping simple python 3 by: Salvador Real "
     parser.add_argument('-d', '--debug',   action='store_true',                     help='Imprimir estadisticas de los paquetes')
     parser.add_argument('-t', '--timeout', type=ufloat,  default=DEFAULT_TIMEOUT,   help='Especifica el tiempo de espera de la respuesta de la solicitud de ping en segundos (ECHO_REPLY). El valor predeterminado es %(default)s segundos')
     parser.add_argument('-c', '--count',   type=uint,    default=DEFAULT_COUNT,     help='Especifica la cantidad de veces que se debe enviar la solicitud de ping (ECHO_REQUEST) a cada host. El valor predeterminado es %(default)s')
     parser.add_argument('-i', '--interval',type=ufloat,  default=DEFAULT_INTERVAL,  help='Especifica el tiempo de espera de intervalo entre el envío de cada paquete en segundos. El valor predeterminado es %(default)s segundos')
-    parser.add_argument('red',help="A.B.D.E/Máscara")
+    parser.add_argument('red',help="A.B.C.D/Máscara")
     args = parser.parse_args()
 
 
