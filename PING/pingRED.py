@@ -25,8 +25,8 @@ HILO_RECIBE_BYTES = Thread()#Hilo que recibe los bytes de respuesta
 
 
 EVENT = Event() #Evento para matar a los hilos
-MUTEX_LIST = Lock() #Lock (Semaforo) para exlusión mutua la variables LIST_ESPERA
-MUTEX_BYTES = Lock() #Lock (Semaforo) para exlusión mutua la variables BYTES
+MUTEX_LIST = Lock() #Lock (Semaforo) para exclusión mutua la variables LIST_ESPERA
+MUTEX_BYTES = Lock() #Lock (Semaforo) para exclusión mutua la variables BYTES
 DESCRIPTOR_LECTOR_A_COSUMIR = 0 
 
 def calcular_checksum(DATOS):
