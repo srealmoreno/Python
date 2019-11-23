@@ -1,7 +1,7 @@
 """
-La mayoria de lenguajes soportan la programación en paralelo (2 o más hilos ejecutandose al mismo tiempo).
-Sin embargo con python al utilizar hilos nunca se obtiene un verdadero paralelismo.
-Esto es porque el lenguaje esta diseñado para que solamente un hilo pueda ejecutarse a la vez.
+    La mayoria de lenguajes soportan la programación en paralelo (2 o más hilos ejecutandose al mismo tiempo).
+    Sin embargo con python al utilizar hilos nunca se obtiene un verdadero paralelismo.
+    Esto es porque el lenguaje esta diseñado para que solamente un hilo pueda ejecutarse a la vez.
 """
 from time import sleep, time
 from threading import Thread
