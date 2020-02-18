@@ -198,7 +198,7 @@ def enviar_ping(ID, DESTINATION, COUNT, INTERVAL, DEBUG, TIMEOUT):
             MUTEX_LIST.release()
 
             #Si el hilo RECIBE PONG no esta vivo, lo reiniciamos
-            if not HILO_RECIBE_PONG.isAlive():
+            if not HILO_RECIBE_PONG.is_alive():
                 reiniciar_hilo(recibir_pong, DEBUG, TIMEOUT)
 
             if SEQ != 65535:
@@ -587,7 +587,7 @@ def ping(NETWORK:str, COUNT:int = DEFAULT_COUNT, TIMEOUT:float = DEFAULT_TIMEOUT
             enviar_ping(ID=randint(0, 65535),DESTINATION=str(i), COUNT=COUNT, INTERVAL=INTERVAL, DEBUG=DEBUG,TIMEOUT=TIMEOUT)
 
     
-        if HILO_RECIBE_PONG.isAlive():    
+        if HILO_RECIBE_PONG.is_alive():    
             HILO_RECIBE_PONG.join()
 
     except KeyboardInterrupt:
